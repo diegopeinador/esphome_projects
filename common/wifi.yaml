@@ -1,0 +1,15 @@
+wifi:
+  ssid: "Your WiFi SSID"
+  password: "Your WiFi Password"
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "EspHome Fallback Hotspot"
+    password: "mUqKEDAqdoBP"
+
+captive_portal:
+
+# Enable Home Assistant API
+api:
+
+ota:

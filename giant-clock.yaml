@@ -1,0 +1,228 @@
+substitutions:
+  # This is the number of leds there are in a given segment (all segments should have the same number of leds or this code won't work)
+  leds_per_segment: "5"
+  # Configure here the number of leds per dot (both dots with the same number of leds)
+  leds_per_dot: "3"
+  total_leds: '146' # = '4 * 7 * ${leds_per_segment} + 2 * ${leds_per_dot}'
+  pin_to_use: 'GPIO18'
+  # The order how you wired the segments. Positions of this array are the A, B, C, D, E, F, G segments (search for an image of "7-segment" to know which are which).
+  # All digits need to be wired in the same order for this code to work
+  segment_order: "{4, 5, 0, 1, 2, 3, 6}"
+  # You shouldn't need to change this, these are the segments that are lit for each number (in the order: GFEDCBA)
+  light_segments_per_number: "{0b0111111, 0b0000110, 0b1011011, 0b1001111, 0b1100110, 0b1101101, 0b1111101, 0b0100111, 0b1111111, 0b1101111}"
+
+
+esphome:
+  name: giant-clock
+  platform: ESP32
+  board: esp32doit-devkit-v1
+  on_boot:
+    priority: -100
+    then:
+      - light.turn_off: 
+          id: all_leds
+      - delay: 1s
+      - light.turn_on: 
+          id: all_leds
+          brightness: 50%
+          effect: Clock
+
+<<: !include common/wifi.yaml
+
+globals:
+  - id: countdown_time_left
+    type: int
+    initial_value: '300'
+
+
+# Enable logging
+logger:
+
+time:
+  - platform: sntp
+    id: sntp_time
+ 
+sensor:
+  - platform: adc
+    pin: GPIO35
+    name: "Living Room Brightness"
+    update_interval: 10s
+    attenuation: "11db"
+    unit_of_measurement: "%"
+    accuracy_decimals: 0
+    filters:
+      - multiply: -25.64
+      - offset: 99.996
+      - median:
+          window_size: 5
+          send_every: 3
+          send_first_at: 3
+      - or:
+        - throttle: 300s
+        - delta: 5
+    on_value:
+      then:
+        - light.control:
+            id: all_leds
+            transition_length: 0
+            brightness: !lambda |-
+              double y=135.0-65.0/(1.25*log10((x+50.0)/17.0)); 
+              return max(min(y*0.01, 0.75), 0.14);
+
+
+light:
+  - platform: neopixelbus
+    id: all_leds
+    type: GRB
+    pin: ${pin_to_use}
+    num_leds: ${total_leds}
+    name: "Giant Clock"
+    effects:
+      - addressable_scan:
+      - addressable_lambda:
+          name: "Clock"
+          update_interval: 1s
+          lambda: |-
+            if (initial_run) {
+              it.all() = Color::BLACK;
+            }
+            
+            auto time = id(sntp_time).now();
+            int first_dot_led = 2 * 7 * ${leds_per_segment};
+            int last_dot_led = 2 * 7 * ${leds_per_segment} + 2 * ${leds_per_dot};
+            if (time.second%4<2){
+              it.range(first_dot_led, last_dot_led) = current_color;
+            }else{
+              it.range(first_dot_led, last_dot_led) = Color::BLACK;
+            }
+            
+            byte segments[10] = ${light_segments_per_number};
+            int order[7] = ${segment_order};
+            int digit;
+            byte light_leds;
+            int current_led_index = 0;
+            
+            digit = time.minute % 10;
+            light_leds = segments[digit];
+            for (int i=0; i<7; i++){
+              int l_index = current_led_index + order[i]*${leds_per_segment};
+              if ( light_leds & (1<<i) ){
+                it.range(l_index, (l_index + ${leds_per_segment})) = current_color;
+              }else{
+                it.range(l_index, (l_index + ${leds_per_segment})) = Color::BLACK;
+              }
+            }
+            
+            current_led_index = 7*${leds_per_segment};
+            digit = time.minute / 10;
+            light_leds = segments[digit];
+            for (int i=0; i<7; i++){
+              int l_index = current_led_index + order[i]*${leds_per_segment};
+              if ( light_leds & (1<<i) ){
+                it.range(l_index, (l_index + ${leds_per_segment})) = current_color;
+              }else{
+                it.range(l_index, (l_index + ${leds_per_segment})) = Color::BLACK;
+              }
+            }
+            
+            current_led_index = last_dot_led;
+            digit = time.hour % 10;
+            light_leds = segments[digit];
+            for (int i=0; i<7; i++){
+              int l_index = current_led_index + order[i]*${leds_per_segment};
+              if ( light_leds & (1<<i) ){
+                it.range(l_index, (l_index + ${leds_per_segment})) = current_color;
+              }else{
+                it.range(l_index, (l_index + ${leds_per_segment})) = Color::BLACK;
+              }
+            }
+            
+            current_led_index = last_dot_led + 7*${leds_per_segment};
+            digit = time.hour / 10;
+            light_leds = segments[digit];
+            for (int i=0; i<7; i++){
+              int l_index = current_led_index + order[i]*${leds_per_segment};
+              if ( light_leds & (1<<i) ){
+                it.range(l_index, (l_index + ${leds_per_segment})) = current_color;
+              }else{
+                it.range(l_index, (l_index + ${leds_per_segment})) = Color::BLACK;
+              }
+            }
+      - addressable_lambda:
+          name: "Countdown 30"
+          update_interval: 0.1s
+          lambda: |-
+            if (initial_run) {
+              it.all() = Color::BLACK;
+              id(countdown_time_left) = 300;
+              return;
+            }
+            
+            id(countdown_time_left) -= 1;
+            if (id(countdown_time_left)<0){
+              id(countdown_time_left) = 0;
+            }
+            
+            int time_left = id(countdown_time_left);
+            int first_dot_led = 2 * 7 * ${leds_per_segment};
+            int last_dot_led = 2 * 7 * ${leds_per_segment} + 2 * ${leds_per_dot};
+            if (time_left%10<5){
+              it.range(first_dot_led, last_dot_led) = current_color;
+            }else{
+              it.range(first_dot_led, last_dot_led) = Color::BLACK;
+            }
+            
+            byte segments[10] = ${light_segments_per_number};
+            int order[7] = ${segment_order};
+            int digit;
+            byte light_leds;
+            int current_led_index = 0;
+            
+            if (id(countdown_time_left)==0){
+              digit = 0;
+              light_leds = segments[digit];
+              for (int i=0; i<7; i++){
+                int l_index = current_led_index + order[i]*${leds_per_segment};
+                if ( light_leds & (1<<i) ){
+                  it.range(l_index, (l_index + ${leds_per_segment})) = current_color;
+                }else{
+                  it.range(l_index, (l_index + ${leds_per_segment})) = Color::BLACK;
+                }
+              }
+            }
+            
+            current_led_index = 7*${leds_per_segment};
+            digit = time_left % 10;
+            light_leds = segments[digit];
+            for (int i=0; i<7; i++){
+              int l_index = current_led_index + order[i]*${leds_per_segment};
+              if ( light_leds & (1<<i) ){
+                it.range(l_index, (l_index + ${leds_per_segment})) = current_color;
+              }else{
+                it.range(l_index, (l_index + ${leds_per_segment})) = Color::BLACK;
+              }
+            }
+            
+            current_led_index = last_dot_led;
+            digit = (time_left/10) % 10;
+            light_leds = segments[digit];
+            for (int i=0; i<7; i++){
+              int l_index = current_led_index + order[i]*${leds_per_segment};
+              if ( light_leds & (1<<i) ){
+                it.range(l_index, (l_index + ${leds_per_segment})) = current_color;
+              }else{
+                it.range(l_index, (l_index + ${leds_per_segment})) = Color::BLACK;
+              }
+            }
+            
+            current_led_index = last_dot_led + 7*${leds_per_segment};
+            digit = time_left / 100;
+            light_leds = segments[digit];
+            for (int i=0; i<7; i++){
+              int l_index = current_led_index + order[i]*${leds_per_segment};
+              if ( light_leds & (1<<i) ){
+                it.range(l_index, (l_index + ${leds_per_segment})) = current_color;
+              }else{
+                it.range(l_index, (l_index + ${leds_per_segment})) = Color::BLACK;
+              }
+            }

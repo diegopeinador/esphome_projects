@@ -1,0 +1,122 @@
+substitutions:
+  # Time of the day to start the wakeup light (in red)
+  start_of_wakeup_process: "6"
+  # Delay from the time above until light becomes green
+  wakeup_delay_until_green: "2h"
+
+esphome:
+  name: moon-lamp
+  platform: ESP8266
+  board: nodemcuv2
+  on_boot:
+    priority: -100
+    then:
+      - light.turn_on: 
+          id: all_leds
+          brightness: 50%
+          red: 1.0
+          green: 1.0
+          blue: 1.0
+      - delay: 300s
+      - light.turn_off: all_leds
+
+<<: !include common/wifi.yaml
+
+web_server:
+
+# Enable logging
+logger:
+
+time:
+  - platform: sntp
+    id: sntp_time
+    timezone: "Europe/Madrid"
+    on_time:
+    - cron: '0 0 ${start_of_wakeup_process} * * *'
+      then:
+        - script.execute: wake_up_status
+
+light:
+  - platform: neopixelbus
+    id: all_leds
+    type: GRB
+    pin: GPIO3
+    num_leds: 42
+    name: "Moon Light"
+
+script:
+  - id: goodnight
+    then:
+      - light.turn_on: 
+          id: all_leds
+          brightness: 50%
+          red: 1.0
+          green: 1.0
+          blue: 1.0
+      - delay: 300s
+      - light.turn_off: 
+          id: all_leds
+          transition_length: 300s
+  - id: wake_up_status
+    then:
+      - light.turn_on: 
+          id: all_leds
+          brightness: 15%
+          red: 1.0
+          green: 0.0
+          blue: 0.0
+      - delay: ${wakeup_delay_until_green}
+      - light.turn_on: 
+          id: all_leds
+          brightness: 15%
+          red: 0.0
+          green: 1.0
+          blue: 0.0
+      - delay: 3h
+      - light.turn_off: all_leds
+ 
+switch:
+  - platform: template
+    name: "Good Nights"
+    optimistic: true
+    turn_on_action:
+      - script.execute: goodnight
+    turn_off_action:
+      - script.stop: goodnight
+      - light.turn_off: all_leds
+  - platform: template
+    name: "Test Red Light"
+    optimistic: true
+    turn_on_action:
+      - light.turn_on: 
+          id: all_leds
+          brightness: 15%
+          red: 1.0
+          green: 0.0
+          blue: 0.0
+    turn_off_action:
+      - light.turn_off: all_leds
+  - platform: template
+    name: "Test Green Light"
+    optimistic: true
+    turn_on_action:
+      - light.turn_on: 
+          id: all_leds
+          brightness: 15%
+          red: 0.0
+          green: 1.0
+          blue: 0.0
+    turn_off_action:
+      - light.turn_off: all_leds
+  - platform: template
+    name: "Full White"
+    optimistic: true
+    turn_on_action:
+      - light.turn_on: 
+          id: all_leds
+          brightness: 100%
+          red: 1.0
+          green: 1.0
+          blue: 1.0
+    turn_off_action:
+      - light.turn_off: all_leds
