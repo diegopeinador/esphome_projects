@@ -1,3 +1,4 @@
 
 # do not sync wifi password...
 common/wifi.yaml
+.esphome/

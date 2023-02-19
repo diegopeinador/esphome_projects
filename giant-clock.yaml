@@ -19,10 +19,10 @@ esphome:
   on_boot:
     priority: -100
     then:
-      - light.turn_off: 
+      - light.turn_off:
           id: all_leds
       - delay: 1s
-      - light.turn_on: 
+      - light.turn_on:
           id: all_leds
           brightness: 50%
           effect: Clock
@@ -41,7 +41,7 @@ logger:
 time:
   - platform: sntp
     id: sntp_time
- 
+
 sensor:
   - platform: adc
     pin: GPIO35
@@ -64,14 +64,15 @@ sensor:
       then:
         - light.control:
             id: all_leds
-            transition_length: 0
+            transition_length: 0s
             brightness: !lambda |-
-              double y=135.0-65.0/(1.25*log10((x+50.0)/17.0)); 
+              double y=135.0-65.0/(1.25*log10((x+50.0)/17.0));
               return max(min(y*0.01, 0.75), 0.14);
 
 
 light:
   - platform: neopixelbus
+    variant: 800KBPS
     id: all_leds
     type: GRB
     pin: ${pin_to_use}
@@ -86,7 +87,7 @@ light:
             if (initial_run) {
               it.all() = Color::BLACK;
             }
-            
+
             auto time = id(sntp_time).now();
             int first_dot_led = 2 * 7 * ${leds_per_segment};
             int last_dot_led = 2 * 7 * ${leds_per_segment} + 2 * ${leds_per_dot};
@@ -95,13 +96,13 @@ light:
             }else{
               it.range(first_dot_led, last_dot_led) = Color::BLACK;
             }
-            
+
             byte segments[10] = ${light_segments_per_number};
             int order[7] = ${segment_order};
             int digit;
             byte light_leds;
             int current_led_index = 0;
-            
+
             digit = time.minute % 10;
             light_leds = segments[digit];
             for (int i=0; i<7; i++){
@@ -112,7 +113,7 @@ light:
                 it.range(l_index, (l_index + ${leds_per_segment})) = Color::BLACK;
               }
             }
-            
+
             current_led_index = 7*${leds_per_segment};
             digit = time.minute / 10;
             light_leds = segments[digit];
@@ -124,7 +125,7 @@ light:
                 it.range(l_index, (l_index + ${leds_per_segment})) = Color::BLACK;
               }
             }
-            
+
             current_led_index = last_dot_led;
             digit = time.hour % 10;
             light_leds = segments[digit];
@@ -136,7 +137,7 @@ light:
                 it.range(l_index, (l_index + ${leds_per_segment})) = Color::BLACK;
               }
             }
-            
+
             current_led_index = last_dot_led + 7*${leds_per_segment};
             digit = time.hour / 10;
             light_leds = segments[digit];
@@ -157,12 +158,12 @@ light:
               id(countdown_time_left) = 300;
               return;
             }
-            
+
             id(countdown_time_left) -= 1;
             if (id(countdown_time_left)<0){
               id(countdown_time_left) = 0;
             }
-            
+
             int time_left = id(countdown_time_left);
             int first_dot_led = 2 * 7 * ${leds_per_segment};
             int last_dot_led = 2 * 7 * ${leds_per_segment} + 2 * ${leds_per_dot};
@@ -171,13 +172,13 @@ light:
             }else{
               it.range(first_dot_led, last_dot_led) = Color::BLACK;
             }
-            
+
             byte segments[10] = ${light_segments_per_number};
             int order[7] = ${segment_order};
             int digit;
             byte light_leds;
             int current_led_index = 0;
-            
+
             if (id(countdown_time_left)==0){
               digit = 0;
               light_leds = segments[digit];
@@ -190,7 +191,7 @@ light:
                 }
               }
             }
-            
+
             current_led_index = 7*${leds_per_segment};
             digit = time_left % 10;
             light_leds = segments[digit];
@@ -202,7 +203,7 @@ light:
                 it.range(l_index, (l_index + ${leds_per_segment})) = Color::BLACK;
               }
             }
-            
+
             current_led_index = last_dot_led;
             digit = (time_left/10) % 10;
             light_leds = segments[digit];
@@ -214,7 +215,7 @@ light:
                 it.range(l_index, (l_index + ${leds_per_segment})) = Color::BLACK;
               }
             }
-            
+
             current_led_index = last_dot_led + 7*${leds_per_segment};
             digit = time_left / 100;
             light_leds = segments[digit];
